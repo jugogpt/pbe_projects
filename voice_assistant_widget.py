@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread
 from PyQt5.QtGui import QFont, QPixmap, QPainter, QColor, QBrush
 import os
+import threading
 from datetime import datetime
 
 # Load environment variables
@@ -85,6 +86,8 @@ class VoiceAssistantWidget(QWidget):
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         self.assistant_worker = None
         self.is_recording = False
+        self.combined_mode = False  # Track if combined recording is active
+        self.current_video_path = None  # Track current recording path
 
         self.setup_ui()
         self.apply_styles()
@@ -208,6 +211,19 @@ class VoiceAssistantWidget(QWidget):
 
         main_layout.addLayout(input_layout)
 
+        # Combined recording toggle
+        combined_layout = QHBoxLayout()
+        combined_layout.setSpacing(12)
+        
+        self.combined_toggle = QPushButton("🎬+🎤 Voice + Screen")
+        self.combined_toggle.setCheckable(True)
+        self.combined_toggle.clicked.connect(self.toggle_combined_mode)
+        self.combined_toggle.setToolTip("Enable to record both voice and screen simultaneously")
+        combined_layout.addWidget(self.combined_toggle)
+        combined_layout.addStretch()
+        
+        main_layout.addLayout(combined_layout)
+        
         # Control buttons
         button_layout = QHBoxLayout()
         button_layout.setSpacing(12)
@@ -324,6 +340,37 @@ class VoiceAssistantWidget(QWidget):
         self.send_btn.setStyleSheet(button_style)
         self.clear_btn.setStyleSheet(button_style)
         self.transcript_btn.setStyleSheet(button_style)
+        
+        # Combined toggle button style
+        toggle_button_style = """
+            QPushButton {
+                background: rgba(80, 100, 150, 0.3);
+                border: 1.5px solid rgba(120, 140, 255, 0.4);
+                border-radius: 10px;
+                padding: 12px 20px;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+                font-size: 13px;
+                font-weight: 500;
+                color: rgba(200, 210, 255, 0.9);
+            }
+            QPushButton:hover {
+                background: rgba(100, 120, 180, 0.4);
+                border: 1.5px solid rgba(140, 160, 255, 0.6);
+            }
+            QPushButton:checked {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 rgba(100, 150, 255, 0.85),
+                    stop:1 rgba(80, 130, 240, 0.85));
+                border: 1.5px solid rgba(120, 160, 255, 0.8);
+                color: #ffffff;
+            }
+            QPushButton:checked:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 rgba(120, 170, 255, 0.95),
+                    stop:1 rgba(100, 150, 255, 0.95));
+            }
+        """
+        self.combined_toggle.setStyleSheet(toggle_button_style)
 
     def initialize_assistant(self):
         """Initialize the voice assistant in background"""
@@ -347,39 +394,181 @@ class VoiceAssistantWidget(QWidget):
 
         if not self.is_recording:
             # Start recording
-            self.assistant_worker.start_recording()
-            self.is_recording = True
-            self.record_btn.setText("⏹️ Stop Listening")
-            self.record_btn.setStyleSheet("""
-                QPushButton {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                        stop:0 rgba(255, 80, 80, 0.85),
-                        stop:1 rgba(255, 100, 100, 0.85));
-                    border: 1px solid rgba(255, 120, 120, 0.4);
-                    border-radius: 10px;
-                    padding: 12px 20px;
-                    font-family: 'Inter', 'Segoe UI', sans-serif;
-                    font-size: 13px;
-                    font-weight: 500;
-                    color: #ffffff;
-                }
-                QPushButton:hover {
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-                        stop:0 rgba(255, 100, 100, 0.95),
-                        stop:1 rgba(255, 120, 120, 0.95));
-                }
-            """)
-            self.status_indicator.setStyleSheet("QLabel { font-size: 28px; color: #ff4444; }")
-            self.pulse_timer.start(500)  # Pulse animation
-            self.avatar_status.setText("Listening...")
+            if self.combined_mode:
+                # Start both voice and screen recording
+                self.start_combined_recording()
+            else:
+                # Start only voice recording
+                self.assistant_worker.start_recording()
+                self.is_recording = True
+                self.record_btn.setText("⏹️ Stop Listening")
+                self.record_btn.setStyleSheet("""
+                    QPushButton {
+                        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                            stop:0 rgba(255, 80, 80, 0.85),
+                            stop:1 rgba(255, 100, 100, 0.85));
+                        border: 1px solid rgba(255, 120, 120, 0.4);
+                        border-radius: 10px;
+                        padding: 12px 20px;
+                        font-family: 'Inter', 'Segoe UI', sans-serif;
+                        font-size: 13px;
+                        font-weight: 500;
+                        color: #ffffff;
+                    }
+                    QPushButton:hover {
+                        background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                            stop:0 rgba(255, 100, 100, 0.95),
+                            stop:1 rgba(255, 120, 120, 0.95));
+                    }
+                """)
+                self.status_indicator.setStyleSheet("QLabel { font-size: 28px; color: #ff4444; }")
+                self.pulse_timer.start(500)  # Pulse animation
+                self.avatar_status.setText("Listening...")
         else:
             # Stop recording
-            self.assistant_worker.stop_recording()
-            self.is_recording = False
-            self.record_btn.setText("🎤 Start Listening")
-            self.apply_styles()  # Reset button style
-            self.status_indicator.setStyleSheet("QLabel { font-size: 28px; color: #4444ff; }")
-            self.pulse_timer.stop()
+            if self.combined_mode:
+                # Stop both recordings and generate combined workflow
+                self.stop_combined_recording()
+            else:
+                # Stop only voice recording
+                self.assistant_worker.stop_recording()
+                self.is_recording = False
+                self.record_btn.setText("🎤 Start Listening")
+                self.apply_styles()  # Reset button style
+                self.status_indicator.setStyleSheet("QLabel { font-size: 28px; color: #4444ff; }")
+                self.pulse_timer.stop()
+                self.avatar_status.setText("Ready")
+    
+    def toggle_combined_mode(self):
+        """Toggle combined recording mode on/off"""
+        if not self.is_recording:
+            self.combined_mode = self.combined_toggle.isChecked()
+            if self.combined_mode:
+                self.add_system_message("✅ Combined mode enabled: Voice + Screen recording")
+            else:
+                self.add_system_message("ℹ️ Combined mode disabled: Voice recording only")
+        else:
+            # Can't change mode while recording
+            self.combined_toggle.setChecked(self.combined_mode)
+            self.add_system_message("⚠️ Cannot change mode while recording. Stop recording first.")
+    
+    def start_combined_recording(self):
+        """Start both voice and screen recording simultaneously"""
+        from recorder import record_screen
+        from utils import timestamped_filename
+        from threading import Event
+        
+        # Start voice recording
+        self.assistant_worker.start_recording()
+        self.is_recording = True
+        
+        # Start screen recording
+        recordings_dir = os.path.abspath("data/recordings")
+        os.makedirs(recordings_dir, exist_ok=True)
+        filename = f"{timestamped_filename()}.mp4"
+        self.current_video_path = os.path.join(recordings_dir, filename)
+        self.screen_stop_event = Event()
+        
+        self.screen_record_thread = threading.Thread(
+            target=record_screen,
+            args=(self.current_video_path, 3, self.screen_stop_event),
+            daemon=True
+        )
+        self.screen_record_thread.start()
+        
+        # Update UI
+        self.record_btn.setText("⏹️ Stop Listening")
+        self.record_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 rgba(255, 80, 80, 0.85),
+                    stop:1 rgba(255, 100, 100, 0.85));
+                border: 1px solid rgba(255, 120, 120, 0.4);
+                border-radius: 10px;
+                padding: 12px 20px;
+                font-family: 'Inter', 'Segoe UI', sans-serif;
+                font-size: 13px;
+                font-weight: 500;
+                color: #ffffff;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:1,
+                    stop:0 rgba(255, 100, 100, 0.95),
+                    stop:1 rgba(255, 120, 120, 0.95));
+            }
+        """)
+        self.status_indicator.setStyleSheet("QLabel { font-size: 28px; color: #ff4444; }")
+        self.pulse_timer.start(500)
+        self.avatar_status.setText("Recording Voice + Screen...")
+        self.add_system_message("🎬 Started combined recording: Voice + Screen")
+    
+    def stop_combined_recording(self):
+        """Stop both recordings and generate combined workflow"""
+        # Stop both recordings
+        self.assistant_worker.stop_recording()
+        if hasattr(self, 'screen_stop_event'):
+            self.screen_stop_event.set()
+            if hasattr(self, 'screen_record_thread'):
+                self.screen_record_thread.join(timeout=5)
+        
+        self.is_recording = False
+        
+        # Update UI
+        self.record_btn.setText("🎤 Start Listening")
+        self.apply_styles()
+        self.status_indicator.setStyleSheet("QLabel { font-size: 28px; color: #4444ff; }")
+        self.pulse_timer.stop()
+        self.avatar_status.setText("Processing...")
+        self.add_system_message("⏹️ Stopped combined recording. Generating workflow...")
+        
+        # Generate combined workflow in background
+        if self.current_video_path and os.path.exists(self.current_video_path):
+            threading.Thread(target=self.generate_combined_workflow, daemon=True).start()
+        else:
+            self.avatar_status.setText("Ready")
+            self.add_system_message("⚠️ Video file not found. Generating voice-only workflow.")
+    
+    def generate_combined_workflow(self):
+        """Generate combined workflow from voice and video"""
+        try:
+            # Get voice transcript
+            voice_transcript = self.assistant_worker.get_transcript_file()
+            if voice_transcript and os.path.exists(voice_transcript):
+                with open(voice_transcript, 'r', encoding='utf-8') as f:
+                    voice_content = f.read()
+            else:
+                voice_content = ""
+            
+            # Analyze video
+            from claude_api import video_analyzer
+            video_analysis = video_analyzer.analyze_video_by_path(self.current_video_path, detailed=True)
+            
+            if not video_analysis or not voice_content:
+                self.add_system_message("⚠️ Missing data. Workflow generation skipped.")
+                self.avatar_status.setText("Ready")
+                return
+            
+            # Generate combined workflow
+            from core import workflow_manager
+            workflow_result = workflow_manager.generate_combined_workflow(voice_content, video_analysis)
+            
+            if workflow_result.get("success", False):
+                self.add_system_message("✅ Combined workflow generated successfully!")
+                if workflow_result.get("workflow"):
+                    title = workflow_result["workflow"].get("title", "Untitled")
+                    steps = len(workflow_result["workflow"].get("steps", []))
+                    self.add_system_message(f"📋 Workflow: {title} ({steps} steps)")
+            else:
+                self.add_system_message("❌ Failed to generate combined workflow")
+            
+            self.avatar_status.setText("Ready")
+            self.current_video_path = None
+            
+        except Exception as e:
+            print(f"Error in combined workflow generation: {e}")
+            import traceback
+            traceback.print_exc()
+            self.add_system_message(f"❌ Error: {str(e)}")
             self.avatar_status.setText("Ready")
 
     def send_text_message(self):
