@@ -1,0 +1,110 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/usage.db
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build artifacts
+*.spec
+build/
+dist/
+*.exe
+*.pkg
+
+# Data directories (keep structure, ignore contents)
+data/recordings/*
+data/screenshots/*
+data/transcripts/*
+data/workflows/*
+data/analyses/*
+backend/data/recordings/*
+backend/data/screenshots/*
+backend/data/transcripts/*
+backend/data/workflows/*
+backend/data/analyses/*
+backend/backend/data/workflows/*
+!data/recordings/.gitkeep
+!data/screenshots/.gitkeep
+!data/transcripts/.gitkeep
+!data/workflows/.gitkeep
+!data/analyses/.gitkeep
+*.mp4
+*.wav
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Cache
+.cache/
+*.cache
+
+# Claude settings
+.claude/settings.local.json
+
+# Temporary files
+*.tmp
+nul
+
+# Frontend build
+frontend/build/
+frontend/.env.local
+
+# Speech chatbot (external project)
+speech-2-speech-o4-tutor-chatbot-main/
+
