@@ -8,8 +8,15 @@ from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QThread
 from PyQt5.QtGui import QFont, QPixmap, QPainter, QColor, QBrush
 import os
+import sys
 import threading
 from datetime import datetime
+from pathlib import Path
+
+# Add backend/core to path for imports
+backend_core_path = str(Path(__file__).parent / "backend" / "core")
+if backend_core_path not in sys.path:
+    sys.path.insert(0, backend_core_path)
 
 # Load environment variables
 from dotenv import load_dotenv
